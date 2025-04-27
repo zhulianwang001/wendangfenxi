@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import datetime
 import os
+import time
 from io import BytesIO
 
 # 处理文档的库
@@ -109,9 +110,13 @@ custom_prompt = st.text_area(
 )
 
 # 分析函数
-def analyze_text(text, analysis_types, legal_areas, custom_prompt):
+def analyze_text(text, analysis_types, legal_areas, custom_prompt, progress_bar):
     if not api_key:
         return {"error": "请提供有效的DeepSeek API密钥"}
+    
+    # 更新进度条
+    progress_bar.progress(10, text="准备分析请求...")
+    time.sleep(0.5)
     
     # 构建请求的分析提示词
     prompt = f"""
@@ -174,6 +179,10 @@ def analyze_text(text, analysis_types, legal_areas, custom_prompt):
 请确保分析报告客观、全面、专业，并提供切实可行的建议。
 """
     
+    # 更新进度条
+    progress_bar.progress(25, text="正在构建分析请求...")
+    time.sleep(0.5)
+    
     # 构建API请求
     headers = {
         "Content-Type": "application/json",
@@ -192,6 +201,10 @@ def analyze_text(text, analysis_types, legal_areas, custom_prompt):
         "max_tokens": 4000
     }
     
+    # 更新进度条
+    progress_bar.progress(40, text="正在发送API请求...")
+    time.sleep(0.5)
+    
     try:
         response = requests.post(
             f"{api_base}/chat/completions",
@@ -199,7 +212,15 @@ def analyze_text(text, analysis_types, legal_areas, custom_prompt):
             data=json.dumps(payload)
         )
         
+        # 更新进度条
+        progress_bar.progress(70, text="请求已发送，等待API响应...")
+        time.sleep(0.5)
+        
         if response.status_code == 200:
+            # 更新进度条
+            progress_bar.progress(90, text="正在处理API响应...")
+            time.sleep(0.5)
+            
             return response.json()["choices"][0]["message"]["content"]
         else:
             return {
@@ -317,13 +338,31 @@ if st.button("进行分析"):
     elif not api_key:
         st.error("请提供DeepSeek API密钥")
     else:
-        with st.spinner("正在进行分析，请稍候..."):
+        # 创建进度条
+        progress_placeholder = st.empty()
+        progress_bar = progress_placeholder.progress(0)
+        
+        # 分析状态信息
+        status_placeholder = st.empty()
+        status_placeholder.info("初始化分析过程...")
+        
+        try:
+            # 执行分析
             result = analyze_text(
                 text_to_analyze, 
                 analysis_types, 
                 legal_areas, 
-                custom_prompt
+                custom_prompt,
+                progress_bar
             )
+            
+            # 完成进度条
+            progress_bar.progress(100, text="分析完成!")
+            time.sleep(0.5)
+            
+            # 清除进度条和状态
+            progress_placeholder.empty()
+            status_placeholder.empty()
             
             if isinstance(result, dict) and "error" in result:
                 st.error(f"分析错误: {result['error']}")
@@ -339,6 +378,11 @@ if st.button("进行分析"):
                 # 保存分析结果以供下载
                 st.session_state.analysis_result = result
                 st.session_state.input_text = text_to_analyze
+        except Exception as e:
+            # 出错时清除进度条和状态
+            progress_placeholder.empty()
+            status_placeholder.empty()
+            st.error(f"分析过程中发生错误: {str(e)}")
 
 # 如果分析结果存在，提供下载选项
 if 'analysis_result' in st.session_state and 'input_text' in st.session_state:
@@ -393,7 +437,7 @@ with st.expander("使用说明"):
     2. 上传Word或PDF文档，或直接在文本框中输入内容
     3. 如有需要，可以编辑提取的文本内容
     4. 选择需要的分析类型和关联法律法规领域
-    5. 点击"进行分析"按钮
+    5. 点击"进行分析"按钮，您将看到分析进度条
     6. 分析完成后可下载不同格式的报告
 
     ### 依赖库安装
